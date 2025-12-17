@@ -1,0 +1,100 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  CANDIDATE
+  RECRUITER
+  HIRING_MANAGER
+}
+
+model User {
+  id        Int     @id @default(autoincrement())
+  email     String  @unique
+  password  String
+  role      Role
+
+  companyId Int?
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  applications        Application[]         @relation("CandidateApplications")
+  applicationChanges  ApplicationHistory[]  @relation("ApplicationChanges")
+}
+
+
+
+model Company {
+  id    Int    @id @default(autoincrement())
+  name  String
+
+  users User[]
+  jobs  Job[]
+}
+
+enum JobStatus {
+  OPEN
+  CLOSED
+}
+
+model Job {
+  id          Int       @id @default(autoincrement())
+  title       String
+  description String
+  status      JobStatus @default(OPEN)
+
+  companyId   Int
+  company     Company   @relation(fields: [companyId], references: [id])
+
+  createdAt   DateTime  @default(now())
+
+  applications Application[]   // 👈 ADD THIS
+}
+
+
+enum ApplicationStage {
+  APPLIED
+  SCREENING
+  INTERVIEW
+  OFFER
+  HIRED
+  REJECTED
+}
+
+model Application {
+  id        Int              @id @default(autoincrement())
+  stage     ApplicationStage @default(APPLIED)
+
+  jobId     Int
+  job       Job              @relation(fields: [jobId], references: [id])
+
+  candidateId Int
+  candidate   User            @relation("CandidateApplications", fields: [candidateId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  histories ApplicationHistory[]
+}
+
+
+model ApplicationHistory {
+  id            Int              @id @default(autoincrement())
+
+  applicationId Int
+  application   Application      @relation(fields: [applicationId], references: [id])
+
+  fromStage     ApplicationStage
+  toStage       ApplicationStage
+
+  changedById   Int
+  changedBy     User             @relation("ApplicationChanges", fields: [changedById], references: [id])
+
+  changedAt     DateTime         @default(now())
+}
+
