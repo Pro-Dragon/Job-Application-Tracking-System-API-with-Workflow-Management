@@ -1,3 +1,7 @@
+import {
+  listMyApplications,
+  listApplicationsForJob,
+} from "../controllers/application.controller.js";
 import express from "express";
 import { authenticate } from "../middlewares/auth.middleware.js";
 import { authorizeRoles } from "../middlewares/role.middleware.js";
@@ -21,4 +25,21 @@ router.patch(
   changeStage
 );
 
+
+
+router.get(
+  "/my",
+  authenticate,
+  authorizeRoles("CANDIDATE"),
+  listMyApplications
+);
+
+router.get(
+  "/job/:jobId",
+  authenticate,
+  authorizeRoles("RECRUITER"),
+  listApplicationsForJob
+);
+
 export default router;
+

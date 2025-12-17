@@ -1,133 +1,155 @@
-# ATS Backend – Job Application Tracking System
 
-## 📌 Overview
-This project is a backend system for a **Job Application Tracking System (ATS)**.  
-It manages job postings, candidate applications, application workflows, and asynchronous email notifications using a background worker.
+# 🧑‍💼 Job Application Tracking System (ATS) – Backend
 
-The system goes beyond basic CRUD by implementing:
-- A **state machine** for application stages
-- **Role-Based Access Control (RBAC)**
-- **Asynchronous processing** using Redis + BullMQ
-- **Audit logging** for all application stage changes
+A production-style backend system for managing job applications with **role-based access control**, **state-machine-driven workflows**, and **asynchronous email notifications**.
 
-This project is designed to resemble real-world backend systems used in hiring platforms.
+This project demonstrates real-world backend engineering concepts beyond basic CRUD.
 
 ---
 
-## 🏗️ Architecture Overview
+## 🚀 Features Overview
 
-The application follows a **layered architecture**:
+### 🔐 Authentication & Authorization
+- JWT-based authentication
+- Role-Based Access Control (RBAC)
+- Supported roles:
+  - `CANDIDATE`
+  - `RECRUITER`
+  - `HIRING_MANAGER` (view-only, optional)
 
-```
-Routes → Controllers → Services → Database (Prisma)
-                     → Message Queue (Redis)
-                     → Background Worker (Email)
-```
+### 💼 Job Management
+- Recruiters can:
+  - Create jobs
+  - Update jobs
+  - Close jobs
+  - List jobs
+- Jobs are scoped to a company
 
-### Components
-- **Express API**: Handles HTTP requests and authentication
-- **Prisma ORM**: Database access and schema management
-- **PostgreSQL**: Primary relational database
-- **Redis + BullMQ**: Message queue for background jobs
-- **Email Worker**: Separate process that sends emails asynchronously
-
-### Background Worker Flow
-1. API triggers an email event (e.g., application submitted)
-2. Email job is pushed to Redis queue
-3. Worker consumes the job and sends the email
-4. API remains responsive (non-blocking)
-
----
-
-## 🔄 Application Workflow (State Machine)
-
-Valid application stages:
+### 📄 Application Workflow (State Machine)
+Applications follow a strict workflow:
 
 ```
 APPLIED → SCREENING → INTERVIEW → OFFER → HIRED
+              ↘
+             REJECTED
 ```
-- An application can move to **REJECTED** from any stage
-- Invalid transitions (e.g., APPLIED → OFFER) are blocked
 
-State transition logic is centralized in a dedicated service.
+- Invalid transitions are blocked
+- Rejection is allowed from any stage
+- All transitions are audited
+
+### 🕒 Application History (Audit Log)
+- Every stage change is recorded
+- Tracks:
+  - From stage
+  - To stage
+  - Changed by
+  - Timestamp
+
+### 📬 Asynchronous Email Notifications
+- Redis + BullMQ used for background jobs
+- Emails sent without blocking API responses
+- Notifications:
+  - Candidate → application submitted & stage changes
+  - Recruiter → new application received
 
 ---
 
-## 🔐 Role-Based Access Control (RBAC)
+## 🏗️ Architecture
 
-| Endpoint / Action | Candidate | Recruiter | Hiring Manager |
-|------------------|-----------|-----------|----------------|
-| Register / Login | ✅ | ✅ | ✅ |
-| Create Job | ❌ | ✅ | ❌ |
-| Update / Close Job | ❌ | ✅ | ❌ |
-| Apply to Job | ✅ | ❌ | ❌ |
-| View Own Applications | ✅ | ❌ | ❌ |
-| View Job Applications | ❌ | ✅ | 🟡 |
-| Change Application Stage | ❌ | ✅ | ❌ |
+### Layered Architecture
+```
+Routes → Controllers → Services → Prisma (DB)
+                          ↓
+                     Message Queue
+                          ↓
+                    Background Worker
+```
 
-🟡 Hiring Manager access is simplified as per task allowance.
+- **Controllers**: Handle HTTP request/response
+- **Services**: Business logic & workflows
+- **Prisma**: Database access & transactions
+- **Worker**: Handles emails asynchronously
 
 ---
 
-## 🗄️ Database Schema (ERD)
+## 🗃️ Database Design (ERD)
 
-Main tables:
-- **User** (roles: CANDIDATE, RECRUITER, HIRING_MANAGER)
-- **Company**
-- **Job**
-- **Application**
-- **ApplicationHistory**
+Entities:
+- User
+- Company
+- Job
+- Application
+- ApplicationHistory
 
-Relationships:
+Key relationships:
 - Company → Jobs (1:N)
 - Job → Applications (1:N)
-- Application → ApplicationHistory (1:N)
 - User → Applications (Candidate)
-- User → ApplicationHistory (changedBy)
+- Application → ApplicationHistory (1:N)
 
-All relations use foreign key constraints to ensure data integrity.
+> ERD diagram included separately (draw.io / Prisma Studio)
 
 ---
 
-## 🌐 API Features
+## 🔑 Role-Based Access Control (RBAC)
 
-### Authentication
-- Register
-- Login (JWT-based authentication)
+| Endpoint | Candidate | Recruiter | Hiring Manager |
+|--------|-----------|-----------|----------------|
+| Apply to Job | ✅ | ❌ | ❌ |
+| View Own Applications | ✅ | ❌ | ❌ |
+| Create Job | ❌ | ✅ | ❌ |
+| Manage Applications | ❌ | ✅ | 👁️ |
+| Change Application Stage | ❌ | ✅ | ❌ |
 
-### Jobs (Recruiter only)
-- Create job
-- Update job
-- Close job (soft delete)
-- List jobs
+---
+
+## 📡 API Endpoints (Summary)
+
+### Auth
+- `POST /auth/register`
+- `POST /auth/login`
+
+### Jobs (Recruiter)
+- `POST /jobs`
+- `GET /jobs`
+- `PATCH /jobs/:id`
+- `PATCH /jobs/:id/close`
 
 ### Applications
-- Candidate applies to job
-- Recruiter updates application stage
-- Candidate views own applications
-- Recruiter views applications by job
+- `POST /applications` (Candidate)
+- `GET /applications/my` (Candidate)
+- `GET /applications/job/:jobId` (Recruiter)
+- `PATCH /applications/:id/stage` (Recruiter)
+
+All protected routes require:
+```
+Authorization: Bearer <JWT_TOKEN>
+```
 
 ---
 
-## 📬 Asynchronous Email Notifications
+## 🧪 Testing
 
-Emails are sent asynchronously for:
-- Candidate: application submission & stage changes
-- Recruiter: new application received
+### Manual Testing
+- Postman collection included:
+  - `ATS-Backend.postman_collection.json`
 
-This is implemented using:
-- **BullMQ**
-- **Redis**
-- **Dedicated email worker**
+> If Postman UI fails to import directly, use **Raw JSON import** or test using the documented endpoints above.
+
+### Automated Tests
+- Unit & integration tests are conceptually designed
+- Due to time constraints, tests are described but not implemented
 
 ---
 
 ## ⚙️ Environment Setup
 
-### Prerequisites
+### Requirements
 - Node.js ≥ 18
 - PostgreSQL
-- Docker (for Redis)
+- Redis (v5+ recommended)
+- Docker (optional)
 
 ### Environment Variables (`.env`)
 ```env
@@ -139,24 +161,13 @@ REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
 ```
 
-### Installation
+---
+
+## ▶️ Running the Project
+
 ```bash
 npm install
-```
-
-### Database Setup
-```bash
 npx prisma migrate dev
-npx prisma generate
-```
-
-### Start Redis
-```bash
-docker run -d -p 6379:6379 redis:7
-```
-
-### Start API Server
-```bash
 npm run dev
 ```
 
@@ -167,46 +178,35 @@ node src/workers/email.worker.js
 
 ---
 
-## 🧪 Testing Strategy
-
-Due to time constraints, automated tests were not implemented.
-
-### Planned Tests
-- **Unit Tests**
-  - Application stage transition validation
-  - Role-based authorization logic
-- **Integration Tests**
-  - Candidate application flow
-  - Recruiter stage update flow
-  - Authorization enforcement
-
-The architecture supports easy addition of tests in the future.
+## 🎥 Demo Video
+A short 3–5 minute demo video walks through:
+1. Candidate registration & application
+2. Recruiter reviewing and changing application stage
+3. Email notifications being triggered
 
 ---
 
-## 📮 Postman Collection
-A Postman collection is provided to test all API endpoints, including:
-- Authentication
-- Jobs
-- Applications
-- Protected routes
+## 📌 Notes
+- Sensitive data is stored securely via environment variables
+- Prisma transactions ensure data consistency
+- Application logic mirrors real ATS systems
 
 ---
 
-## 🎥 Video Demonstration
-A short video (3–5 minutes) demonstrates:
-1. Candidate applying to a job
-2. Recruiter reviewing the application
-3. Application stage update
-4. Email notifications being triggered
+## ✅ Project Status
+
+✔ Functional REST API  
+✔ State machine enforced  
+✔ Async background processing  
+✔ RBAC implemented  
+✔ Audit trail maintained  
+✔ Production-style architecture  
 
 ---
 
-## ✅ Conclusion
-This project demonstrates:
-- Complex workflow management
-- Asynchronous backend processing
-- Secure RBAC implementation
-- Clean and maintainable backend architecture
+## 👨‍💻 Author
 
-It reflects real-world backend engineering practices used in modern hiring platforms.
+Dhanush Nagisetti  
+Backend Developer | B.Tech AIML
+
+---
